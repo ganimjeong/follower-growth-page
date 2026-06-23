@@ -284,6 +284,7 @@ document.getElementById('toggle').addEventListener('click',e=>{
   MODE=b.dataset.mode;
   [...document.querySelectorAll('#toggle button')].forEach(x=>x.classList.toggle('active',x===b));
   render();
+  drawReveal(svg,true); // 탭 전환마다 선 다시 그리기
 });
 
 buildStats();
@@ -366,8 +367,10 @@ function buildMini(group){
 GROUPS.forEach(buildMini);
 
 /* ===== 스크롤 진입 시 선 그리기 애니메이션 (한 번만) ===== */
-function drawReveal(svg){
-  if(!svg||svg.dataset.revealed)return; svg.dataset.revealed='1';
+function drawReveal(svg,force){
+  if(!svg)return;
+  if(!force && svg.dataset.revealed)return;
+  svg.dataset.revealed='1';
   svg.querySelectorAll('.series-path').forEach((p,i)=>{
     let len; try{len=p.getTotalLength();}catch(e){return;}
     p.style.transition='none';
