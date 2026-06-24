@@ -1,0 +1,44 @@
+name: Collect followers
+
+on:
+  schedule:
+    - cron: '0 1 * * *'   # 매일 01:00 UTC = 10:00 KST
+  workflow_dispatch:        # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Write channels.json from secret
+        run: printf '%s' "$CHANNELS_JSON" > channels.json
+        env:
+          CHANNELS_JSON: ${{ secrets.CHANNELS_JSON }}
+
+      - name: Collect followers
+        run: node collect.mjs
+
+      - name: Commit data.json if changed
+        run: |
+          rm -f channels.json
+          if git diff --quiet -- data.json; then
+            echo "변경 없음 — 커밋 생략"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data.json
+            git commit -m "chore: 팔로워 자동 수집 ($(date -u +%Y-%m-%d))"
+            git push
+          fi
