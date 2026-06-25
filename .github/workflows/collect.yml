@@ -2,7 +2,9 @@ name: Collect followers
 
 on:
   schedule:
-    - cron: '0 1 * * *'   # 매일 01:00 UTC = 10:00 KST
+    # 정시(:00)는 GitHub 부하 피크라 지연·드롭이 잦아 :07/:37로 분산 (둘 다 떠도 같은 날짜 덮어쓰기라 무해)
+    - cron: '7 1 * * *'    # 10:07 KST
+    - cron: '37 1 * * *'   # 10:37 KST (1차 드롭 대비 백업)
   workflow_dispatch:        # 수동 실행 버튼
 
 permissions:
