@@ -2,7 +2,8 @@ name: Collect followers
 
 on:
   schedule:
-    - cron: '53 0 * * *'   # 09:53 KST (= 00:53 UTC), 10시 7분 전
+    - cron: '53 0 * * *'   # 09:53 KST (= 00:53 UTC) — 1차
+    - cron: '17 1 * * *'   # 10:17 KST (= 01:17 UTC) — 2차 백업
   workflow_dispatch:        # 수동 실행 버튼
 
 permissions:
