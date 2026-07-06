@@ -14,12 +14,14 @@
     {
       "handle": "thishiphop",
       "ko": "디스힙합",
-      "color": "#fbbf24"
+      "color": "#fbbf24",
+      "sold": true
     },
     {
       "handle": "readyaction",
       "ko": "레디액션",
-      "color": "#34d399"
+      "color": "#34d399",
+      "sold": true
     },
     {
       "handle": "space_lab",
@@ -286,6 +288,16 @@
         91297,
         103967,
         27932
+      ]
+    },
+    {
+      "date": "2026-07-06",
+      "counts": [
+        221156,
+        101158,
+        null,
+        null,
+        28159
       ]
     }
   ]

@@ -147,7 +147,7 @@ fetch('data.json',{cache:'no-store'})
     DATA={
       dates: raw.points.map(p=>md(p.date)),
       days:  raw.points.map(p=>Math.round((dn(p.date)-base)/86400000)),
-      channels: raw.channels.map((c,ci)=>({handle:c.handle,ko:c.ko,color:c.color,data:raw.points.map(p=>p.counts[ci]/10000)}))
+      channels: raw.channels.map((c,ci)=>({handle:c.handle,ko:c.ko,color:c.color,sold:!!c.sold,data:raw.points.map(p=>p.counts[ci]==null?null:p.counts[ci]/10000)}))
     };
     n=DATA.dates.length; maxDay=DATA.days[n-1]||1;
     DATA.channels.forEach(c=>state[c.handle]=true);
@@ -158,20 +158,23 @@ fetch('data.json',{cache:'no-store'})
 function main(){
 const el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 const manwon=v=>(Math.floor(v*10+1e-6)/10)+'만명'; // 천단위 절삭 → 0.1만 단위
-const pctOf=(c,i)=>(c.data[i]/c.data[0]-1)*100;
+const pctOf=(c,i)=>c.data[i]==null?null:(c.data[i]/c.data[0]-1)*100;
 const sign=x=>(x>=0?'+':'');
+// 판매 등으로 수집이 끊긴 채널 대응: 마지막 실측 인덱스 / 해당 시점까지의 마지막 실측값
+const lastIdx=c=>{for(let i=c.data.length-1;i>=0;i--)if(c.data[i]!=null)return i;return 0;};
+const carry=(c,i)=>{for(let j=Math.min(i,c.data.length-1);j>=0;j--)if(c.data[j]!=null)return c.data[j];return 0;};
 
 // y-domain per mode
 function yDomain(){
   if(MODE==='pct'){
     let mx=0;
-    DATA.channels.forEach(c=>{if(state[c.handle])c.data.forEach((v,i)=>mx=Math.max(mx,pctOf(c,i)));});
+    DATA.channels.forEach(c=>{if(state[c.handle])c.data.forEach((v,i)=>{const p=pctOf(c,i);if(p!=null)mx=Math.max(mx,p);});});
     mx=Math.max(mx,5);
     const top=Math.ceil(mx/5)*5;
     return {min:0, max:top};
   }else{
     let mn=Infinity,mx=-Infinity;
-    DATA.channels.forEach(c=>{if(state[c.handle])c.data.forEach(v=>{mn=Math.min(mn,v);mx=Math.max(mx,v);});});
+    DATA.channels.forEach(c=>{if(state[c.handle])c.data.forEach(v=>{if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}});});
     if(!isFinite(mn)){mn=0;mx=1;}
     const pad=Math.max((mx-mn)*0.08,0.2);
     // 0.5 단위로 다듬어 위아래를 꽉 채움
@@ -234,9 +237,11 @@ function render(){
 
   DATA.channels.forEach((c,i)=>{
     const on=state[c.handle];
-    const pts=c.data.map((v,j)=>[X(j),Y(yv(c,j))]);
+    const pts=[];
+    c.data.forEach((v,j)=>{if(v!=null)pts.push([X(j),Y(yv(c,j))]);}); // null(판매 후)은 제외 → 선이 마지막 실측에서 끊김
     const base=Y(DOM.min);
-    svg.appendChild(el('path',{class:'series-area',d:smooth(pts)+` L${X(n-1)},${base} L${X(0)},${base} Z`,fill:'url(#g'+i+')',opacity:on?1:0}));
+    const firstX=pts.length?pts[0][0]:X(0), lastX=pts.length?pts[pts.length-1][0]:X(0);
+    svg.appendChild(el('path',{class:'series-area',d:smooth(pts)+` L${lastX},${base} L${firstX},${base} Z`,fill:'url(#g'+i+')',opacity:on?1:0}));
     svg.appendChild(el('path',{class:'series-path',d:smooth(pts),stroke:c.color,opacity:on?1:.05}));
     pts.forEach(p=>svg.appendChild(el('circle',{class:'pt',cx:p[0],cy:p[1],r:3,fill:'#0b0f17',stroke:c.color,'stroke-width':2,opacity:on?1:0})));
   });
@@ -255,7 +260,7 @@ svg.addEventListener('mousemove',e=>{
   hoverLine.setAttribute('x1',px);hoverLine.setAttribute('x2',px);hoverLine.setAttribute('opacity',1);
   let rows='';
   DATA.channels.forEach((c,k)=>{
-    if(state[c.handle]){
+    if(state[c.handle] && c.data[i]!=null){
       hoverDots[k].setAttribute('cx',px);hoverDots[k].setAttribute('cy',Y(yv(c,i)));hoverDots[k].setAttribute('opacity',1);
       const p=pctOf(c,i);
       const val= MODE==='pct'
@@ -276,9 +281,10 @@ svg.addEventListener('mouseleave',()=>{
 // legend
 const legend=document.getElementById('legend');
 DATA.channels.forEach(c=>{
-  const pct=pctOf(c,n-1);
+  const pct=pctOf(c,lastIdx(c));
   const chip=document.createElement('div');chip.className='chip';
-  chip.innerHTML=`<span class="dot" style="background:${c.color}"></span><b>${c.handle}</b><span class="ko">${c.ko}</span><span class="delta">${sign(pct)}${pct.toFixed(1)}%</span>`;
+  const dim=c.sold?'opacity:.42':''; // 판매 채널은 이름만 조금 더 어둡게
+  chip.innerHTML=`<span class="dot" style="background:${c.color}"></span><b style="${dim}">${c.handle}</b><span class="ko" style="${dim}">${c.ko}</span><span class="delta">${sign(pct)}${pct.toFixed(1)}%</span>`;
   chip.onclick=()=>{state[c.handle]=!state[c.handle];chip.classList.toggle('off',!state[c.handle]);render();};
   legend.appendChild(chip);
 });
@@ -288,10 +294,11 @@ const stats=document.getElementById('stats');
 function buildStats(){
   stats.innerHTML='';
   DATA.channels.forEach(c=>{
-    const first=c.data[0],last=c.data[n-1],diff=Math.round((last-first)*100)/100,pct=pctOf(c,n-1);
+    const li=lastIdx(c);
+    const first=c.data[0],last=c.data[li],diff=Math.round((last-first)*100)/100,pct=pctOf(c,li);
     const cls=diff>=0?'up':'down';
     const card=document.createElement('div');card.className='stat';
-    card.innerHTML=`<div class="name"><span class="dot" style="background:${c.color}"></span>${c.handle} · ${c.ko}</div>
+    card.innerHTML=`<div class="name"><span class="dot" style="background:${c.color}"></span><span style="${c.sold?'opacity:.42':''}">${c.handle} · ${c.ko}</span></div>
       <div class="big">${manwon(last)}</div>
       <div class="grow ${cls}">${sign(diff)}${diff}만 (${sign(pct)}${pct.toFixed(1)}%)</div>`;
     stats.appendChild(card);
@@ -309,7 +316,7 @@ document.getElementById('toggle').addEventListener('click',e=>{
 
 // hero: 총 팔로워 (전 채널 합계)
 function buildHero(){
-  const sumAt=i=>DATA.channels.reduce((s,c)=>s+c.data[i]*10000,0);
+  const sumAt=i=>DATA.channels.reduce((s,c)=>s+carry(c,i)*10000,0); // 판매 채널은 마지막 실측값으로 고정 반영
   const total=Math.round(sumAt(n-1)), first=Math.round(sumAt(0));
   const diff=total-first, pct=first?(total/first-1)*100:0;
   const man=v=>(Math.round(v/100)/100).toFixed(2); // 만명 단위, 소수 2자리(천명 자리에서 반올림)
@@ -336,7 +343,7 @@ function buildMini(group){
   const W2=900,H2=300,Mm={t:24,r:26,b:40,l:58};
   const iw2=W2-Mm.l-Mm.r, ih2=H2-Mm.t-Mm.b;
   let mn=Infinity,mx=-Infinity;
-  chans.forEach(c=>c.data.forEach(v=>{mn=Math.min(mn,v);mx=Math.max(mx,v);}));
+  chans.forEach(c=>c.data.forEach(v=>{if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}}));
   const pad=Math.max((mx-mn)*0.12,0.12);
   const lo=Math.floor((mn-pad)*10)/10, hi=Math.ceil((mx+pad)*10)/10;
   const Xx=i=>Mm.l+(maxDay?iw2*DATA.days[i]/maxDay:iw2/2);
@@ -344,10 +351,10 @@ function buildMini(group){
 
   // card shell
   const card=document.createElement('div');card.className='mini-card';
-  const last=chans.map(c=>c.data[n-1]);
+  const last=chans.map(c=>c.data[lastIdx(c)]);
   const rng=chans.length>1?`${Math.min(...last)}~${Math.max(...last)}만명`:`${last[0]}만명`;
   let legendHtml='';
-  if(chans.length>1) legendHtml='<div class="mini-legend">'+chans.map(c=>`<span><span class="dot" style="background:${c.color}"></span>${c.handle} · ${c.ko}</span>`).join('')+'</div>';
+  if(chans.length>1) legendHtml='<div class="mini-legend">'+chans.map(c=>`<span><span class="dot" style="background:${c.color}"></span><span style="${c.sold?'opacity:.42':''}">${c.handle} · ${c.ko}</span></span>`).join('')+'</div>';
   card.innerHTML=`<div class="mini-head"><div class="t"><span class="badge">${group.badge}</span>${group.title}</div><div class="s">현재 ${rng}</div></div>${legendHtml}
     <div class="chartbox"><svg viewBox="0 0 ${W2} ${H2}" preserveAspectRatio="xMidYMid meet"></svg><div class="tooltip"></div></div>`;
   multi.appendChild(card);
@@ -376,8 +383,10 @@ function buildMini(group){
   s.appendChild(defs);
   const baseY=Yy(lo);
   chans.forEach((c,i)=>{
-    const pts=c.data.map((v,j)=>[Xx(j),Yy(v)]);
-    s.appendChild(el('path',{class:'series-area',d:smooth(pts)+` L${Xx(n-1)},${baseY} L${Xx(0)},${baseY} Z`,fill:`url(#${group.badge}g${i})`}));
+    const pts=[];
+    c.data.forEach((v,j)=>{if(v!=null)pts.push([Xx(j),Yy(v)]);}); // null(판매 후)은 제외 → 선 끊김
+    const firstX=pts.length?pts[0][0]:Xx(0), lastX=pts.length?pts[pts.length-1][0]:Xx(0);
+    s.appendChild(el('path',{class:'series-area',d:smooth(pts)+` L${lastX},${baseY} L${firstX},${baseY} Z`,fill:`url(#${group.badge}g${i})`}));
     s.appendChild(el('path',{class:'series-path',d:smooth(pts),stroke:c.color}));
     pts.forEach(p=>s.appendChild(el('circle',{class:'pt',cx:p[0],cy:p[1],r:3,fill:'#0b0f17',stroke:c.color,'stroke-width':2})));
   });
@@ -389,7 +398,9 @@ function buildMini(group){
     let idx=0,best=1e9;for(let k=0;k<n;k++){const dd=Math.abs(Xx(k)-sx);if(dd<best){best=dd;idx=k;}}
     const px=Xx(idx);hl.setAttribute('x1',px);hl.setAttribute('x2',px);hl.setAttribute('opacity',1);
     let rows='';
-    chans.forEach((c,k)=>{hd[k].setAttribute('cx',px);hd[k].setAttribute('cy',Yy(c.data[idx]));hd[k].setAttribute('opacity',1);
+    chans.forEach((c,k)=>{
+      if(c.data[idx]==null){hd[k].setAttribute('opacity',0);return;}
+      hd[k].setAttribute('cx',px);hd[k].setAttribute('cy',Yy(c.data[idx]));hd[k].setAttribute('opacity',1);
       const p=pctOf(c,idx);
       rows+=`<div class="tt-row"><span class="l"><span class="dot" style="background:${c.color}"></span>${c.ko}</span><span class="v">${manwon(c.data[idx])}<small>${sign(p)}${p.toFixed(1)}%</small></span></div>`;});
     tip.innerHTML=`<div class="tt-date">${DATA.dates[idx]}</div>${rows}`;

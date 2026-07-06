@@ -20,6 +20,12 @@ async function followers(id, token) {
 
 const counts = [];
 for (const ch of data.channels) {
+  // 판매된 채널은 더 이상 수집하지 않고 null 기록 → 차트 선이 마지막 실측에서 끊김
+  if (ch.sold) {
+    console.log(`${ch.handle.padEnd(16)} ${'(판매됨 · 수집 생략)'.padStart(8)}`);
+    counts.push(null);
+    continue;
+  }
   const info = channels[ch.handle];
   if (!info) throw new Error(`channels.json에 ${ch.handle} 없음`);
   const c = await followers(info.igUserId, info.igAccessToken);
