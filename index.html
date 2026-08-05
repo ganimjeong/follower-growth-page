@@ -122,7 +122,7 @@
   </div>
 
   <h2 class="section-h">📊 채널별 최근 2주 추이</h2>
-  <div class="sub" style="margin:-4px 2px 14px;">채널마다 표를 분리하되 세 표의 y축 폭(축척)은 동일하게 맞췄습니다 · 기울기를 그대로 비교하면 최근 2주간 어느 채널이 빠르게 크는지 보입니다</div>
+  <div class="sub" style="margin:-4px 2px 14px;">표마다 y축을 해당 채널 데이터에 꽉 맞춰, 최근 2주간 각 채널이 어떻게 움직였는지 자세히 보입니다</div>
   <div id="multiples"></div>
 
   <footer>shorts-publisher · 단위: 만명 · 천단위 이하 절삭</footer>
@@ -330,20 +330,12 @@ buildHero();
 buildStats();
 render();
 
-/* ===== 채널별 최근 2주 미니차트 (판매 채널 제외, y축 폭 공통) ===== */
+/* ===== 채널별 최근 2주 미니차트 (판매 채널 제외, y축은 채널별 개별 축척) ===== */
 const multi=document.getElementById('multiples');
 const MINI_CHANS=DATA.channels.filter(c=>!c.sold);
 // 최근 2주 창: 마지막 날짜 기준 14일 이내의 인덱스
 const wStart=DATA.days.findIndex(d=>DATA.days[n-1]-d<=14);
 const wIdx=[];for(let i=wStart;i<n;i++)wIdx.push(i);
-// 세 표의 축척을 맞추기 위한 공통 y축 폭: 창 내 최대 변동폭 + 여유
-let maxSpan=0;
-MINI_CHANS.forEach(c=>{
-  let mn=Infinity,mx=-Infinity;
-  wIdx.forEach(i=>{const v=c.data[i];if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}});
-  if(isFinite(mn))maxSpan=Math.max(maxSpan,mx-mn);
-});
-const Y_RANGE=Math.max(maxSpan,0.1)*1.24;
 
 function buildMini(c){
   const W2=900,H2=300,Mm={t:24,r:26,b:40,l:58};
@@ -351,8 +343,9 @@ function buildMini(c){
   let mn=Infinity,mx=-Infinity;
   wIdx.forEach(i=>{const v=c.data[i];if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}});
   if(!isFinite(mn)){mn=0;mx=1;}
-  // 채널 데이터 중심에 공통 폭을 배치 → 기울기 비교 가능
-  const mid=(mn+mx)/2, lo=mid-Y_RANGE/2, hi=mid+Y_RANGE/2;
+  // 채널 자신의 최소~최대에 위아래를 꽉 맞춤 → 작은 변화도 크게 보임
+  const pad=Math.max((mx-mn)*0.12,0.02);
+  const lo=mn-pad, hi=mx+pad;
   const d0=DATA.days[wIdx[0]], dSpan=DATA.days[n-1]-d0||1;
   const Xx=i=>Mm.l+iw2*(DATA.days[i]-d0)/dSpan;
   const Yy=v=>Mm.t+ih2-((v-lo)/(hi-lo))*ih2;
