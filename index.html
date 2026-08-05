@@ -121,8 +121,8 @@
     <div class="stats" id="stats"></div>
   </div>
 
-  <h2 class="section-h">📊 실제 팔로워 추이 · 규모별</h2>
-  <div class="sub" style="margin:-4px 2px 14px;">규모가 다른 채널을 한 표에 그리면 성장이 묻히기 때문에, 척도를 분리해 각 채널의 실제 기울기를 살렸습니다</div>
+  <h2 class="section-h">📊 채널별 최근 2주 추이</h2>
+  <div class="sub" style="margin:-4px 2px 14px;">채널마다 표를 분리하되 세 표의 y축 폭(축척)은 동일하게 맞췄습니다 · 기울기를 그대로 비교하면 최근 2주간 어느 채널이 빠르게 크는지 보입니다</div>
   <div id="multiples"></div>
 
   <footer>shorts-publisher · 단위: 만명 · 천단위 이하 절삭</footer>
@@ -330,32 +330,42 @@ buildHero();
 buildStats();
 render();
 
-/* ===== 규모별 분리 미니차트 ===== */
-const GROUPS=[
-  {title:'고팔로워 채널', badge:'HIGH',   handles:['goodvibesongs']},
-  {title:'일반 채널들',   badge:'NORMAL', handles:['goodmovies','thishiphop','readyaction']},
-  {title:'저팔로워 채널', badge:'LOW',    handles:['space_lab']},
-];
+/* ===== 채널별 최근 2주 미니차트 (판매 채널 제외, y축 폭 공통) ===== */
 const multi=document.getElementById('multiples');
+const MINI_CHANS=DATA.channels.filter(c=>!c.sold);
+// 최근 2주 창: 마지막 날짜 기준 14일 이내의 인덱스
+const wStart=DATA.days.findIndex(d=>DATA.days[n-1]-d<=14);
+const wIdx=[];for(let i=wStart;i<n;i++)wIdx.push(i);
+// 세 표의 축척을 맞추기 위한 공통 y축 폭: 창 내 최대 변동폭 + 여유
+let maxSpan=0;
+MINI_CHANS.forEach(c=>{
+  let mn=Infinity,mx=-Infinity;
+  wIdx.forEach(i=>{const v=c.data[i];if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}});
+  if(isFinite(mn))maxSpan=Math.max(maxSpan,mx-mn);
+});
+const Y_RANGE=Math.max(maxSpan,0.1)*1.24;
 
-function buildMini(group){
-  const chans=group.handles.map(h=>DATA.channels.find(c=>c.handle===h));
+function buildMini(c){
   const W2=900,H2=300,Mm={t:24,r:26,b:40,l:58};
   const iw2=W2-Mm.l-Mm.r, ih2=H2-Mm.t-Mm.b;
   let mn=Infinity,mx=-Infinity;
-  chans.forEach(c=>c.data.forEach(v=>{if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}}));
-  const pad=Math.max((mx-mn)*0.12,0.12);
-  const lo=Math.floor((mn-pad)*10)/10, hi=Math.ceil((mx+pad)*10)/10;
-  const Xx=i=>Mm.l+(maxDay?iw2*DATA.days[i]/maxDay:iw2/2);
+  wIdx.forEach(i=>{const v=c.data[i];if(v!=null){mn=Math.min(mn,v);mx=Math.max(mx,v);}});
+  if(!isFinite(mn)){mn=0;mx=1;}
+  // 채널 데이터 중심에 공통 폭을 배치 → 기울기 비교 가능
+  const mid=(mn+mx)/2, lo=mid-Y_RANGE/2, hi=mid+Y_RANGE/2;
+  const d0=DATA.days[wIdx[0]], dSpan=DATA.days[n-1]-d0||1;
+  const Xx=i=>Mm.l+iw2*(DATA.days[i]-d0)/dSpan;
   const Yy=v=>Mm.t+ih2-((v-lo)/(hi-lo))*ih2;
+
+  // 창 시작 대비 증감
+  const firstV=c.data[wIdx.find(i=>c.data[i]!=null)];
+  const li=lastIdx(c), lastV=c.data[li];
+  const diff=Math.round((lastV-firstV)*100)/100, pct=firstV?(lastV/firstV-1)*100:0;
 
   // card shell
   const card=document.createElement('div');card.className='mini-card';
-  const last=chans.map(c=>c.data[lastIdx(c)]);
-  const rng=chans.length>1?`${Math.min(...last)}~${Math.max(...last)}만명`:`${last[0]}만명`;
-  let legendHtml='';
-  if(chans.length>1) legendHtml='<div class="mini-legend">'+chans.map(c=>`<span><span class="dot" style="background:${c.color}"></span><span style="${c.sold?'opacity:.42':''}">${c.handle} · ${c.ko}</span></span>`).join('')+'</div>';
-  card.innerHTML=`<div class="mini-head"><div class="t"><span class="badge">${group.badge}</span>${group.title}</div><div class="s">현재 ${rng}</div></div>${legendHtml}
+  card.innerHTML=`<div class="mini-head"><div class="t"><span class="badge">최근 2주</span><span class="dot" style="background:${c.color}"></span>${c.handle} · ${c.ko}</div>
+    <div class="s">현재 ${manwon(lastV)} · <span class="${diff>=0?'up':'down'}">${sign(diff)}${diff}만 (${sign(pct)}${pct.toFixed(1)}%)</span></div></div>
     <div class="chartbox"><svg viewBox="0 0 ${W2} ${H2}" preserveAspectRatio="xMidYMid meet"></svg><div class="tooltip"></div></div>`;
   multi.appendChild(card);
 
@@ -366,49 +376,48 @@ function buildMini(group){
   for(let i=0;i<=ticks;i++){
     const val=lo+(hi-lo)*i/ticks, y=Yy(val);
     s.appendChild(el('line',{class:'gridline',x1:Mm.l,y1:y,x2:W2-Mm.r,y2:y}));
-    const t=el('text',{class:'axis-txt',x:Mm.l-10,y:y+4,'text-anchor':'end'});t.textContent=(Math.round(val*10)/10)+'만';s.appendChild(t);
+    const t=el('text',{class:'axis-txt',x:Mm.l-10,y:y+4,'text-anchor':'end'});t.textContent=(Math.round(val*100)/100)+'만';s.appendChild(t);
   }
   // x labels (thinning)
   let lastX=-99;
-  DATA.dates.forEach((d,i)=>{const x=Xx(i);if(x-lastX>=40||i===n-1){const t=el('text',{class:'axis-txt',x:x,y:H2-Mm.b+22,'text-anchor':'middle'});t.textContent=d;s.appendChild(t);lastX=x;}});
+  wIdx.forEach(i=>{const x=Xx(i);if(x-lastX>=40||i===n-1){const t=el('text',{class:'axis-txt',x:x,y:H2-Mm.b+22,'text-anchor':'middle'});t.textContent=DATA.dates[i];s.appendChild(t);lastX=x;}});
   // baseline
-  const bx=Xx(0);
+  const bx=Xx(wIdx[0]);
   s.appendChild(el('line',{class:'baseline',x1:bx,y1:Mm.t,x2:bx,y2:Mm.t+ih2}));
-  const an=el('text',{class:'anno',x:bx+5,y:Mm.t+12});an.textContent='시작';s.appendChild(an);
-  // gradients + series
+  const an=el('text',{class:'anno',x:bx+5,y:Mm.t+12});an.textContent='2주 전';s.appendChild(an);
+  // gradient + series
   const defs=el('defs',{});
-  chans.forEach((c,i)=>{const g=el('linearGradient',{id:group.badge+'g'+i,x1:0,y1:0,x2:0,y2:1});
-    g.appendChild(el('stop',{offset:'0%','stop-color':c.color,'stop-opacity':'.30'}));
-    g.appendChild(el('stop',{offset:'100%','stop-color':c.color,'stop-opacity':'0'}));defs.appendChild(g);});
-  s.appendChild(defs);
+  const g=el('linearGradient',{id:'mini-'+c.handle,x1:0,y1:0,x2:0,y2:1});
+  g.appendChild(el('stop',{offset:'0%','stop-color':c.color,'stop-opacity':'.30'}));
+  g.appendChild(el('stop',{offset:'100%','stop-color':c.color,'stop-opacity':'0'}));
+  defs.appendChild(g);s.appendChild(defs);
   const baseY=Yy(lo);
-  chans.forEach((c,i)=>{
-    const pts=[];
-    c.data.forEach((v,j)=>{if(v!=null)pts.push([Xx(j),Yy(v)]);}); // null(판매 후)은 제외 → 선 끊김
-    const firstX=pts.length?pts[0][0]:Xx(0), lastX=pts.length?pts[pts.length-1][0]:Xx(0);
-    s.appendChild(el('path',{class:'series-area',d:smooth(pts)+` L${lastX},${baseY} L${firstX},${baseY} Z`,fill:`url(#${group.badge}g${i})`}));
-    s.appendChild(el('path',{class:'series-path',d:smooth(pts),stroke:c.color}));
-    pts.forEach(p=>s.appendChild(el('circle',{class:'pt',cx:p[0],cy:p[1],r:3,fill:'#0b0f17',stroke:c.color,'stroke-width':2})));
-  });
+  const pts=[];
+  wIdx.forEach(i=>{const v=c.data[i];if(v!=null)pts.push([Xx(i),Yy(v)]);});
+  const firstX=pts.length?pts[0][0]:bx, lastPX=pts.length?pts[pts.length-1][0]:bx;
+  s.appendChild(el('path',{class:'series-area',d:smooth(pts)+` L${lastPX},${baseY} L${firstX},${baseY} Z`,fill:`url(#mini-${c.handle})`}));
+  s.appendChild(el('path',{class:'series-path',d:smooth(pts),stroke:c.color}));
+  pts.forEach(p=>s.appendChild(el('circle',{class:'pt',cx:p[0],cy:p[1],r:3,fill:'#0b0f17',stroke:c.color,'stroke-width':2})));
   // hover
   const hl=el('line',{class:'hover-line',x1:0,y1:Mm.t,x2:0,y2:Mm.t+ih2,opacity:0});s.appendChild(hl);
-  const hd=chans.map(c=>{const d=el('circle',{cx:0,cy:0,r:5,fill:c.color,stroke:'#0b0f17','stroke-width':2,opacity:0});s.appendChild(d);return d;});
+  const hd=el('circle',{cx:0,cy:0,r:5,fill:c.color,stroke:'#0b0f17','stroke-width':2,opacity:0});s.appendChild(hd);
   s.addEventListener('mousemove',e=>{
     const r=s.getBoundingClientRect(), sx=(e.clientX-r.left)/r.width*W2;
-    let idx=0,best=1e9;for(let k=0;k<n;k++){const dd=Math.abs(Xx(k)-sx);if(dd<best){best=dd;idx=k;}}
+    let idx=wIdx[0],best=1e9;wIdx.forEach(k=>{const dd=Math.abs(Xx(k)-sx);if(dd<best){best=dd;idx=k;}});
     const px=Xx(idx);hl.setAttribute('x1',px);hl.setAttribute('x2',px);hl.setAttribute('opacity',1);
     let rows='';
-    chans.forEach((c,k)=>{
-      if(c.data[idx]==null){hd[k].setAttribute('opacity',0);return;}
-      hd[k].setAttribute('cx',px);hd[k].setAttribute('cy',Yy(c.data[idx]));hd[k].setAttribute('opacity',1);
-      const p=pctOf(c,idx);
-      rows+=`<div class="tt-row"><span class="l"><span class="dot" style="background:${c.color}"></span>${c.ko}</span><span class="v">${manwon(c.data[idx])}<small>${sign(p)}${p.toFixed(1)}%</small></span></div>`;});
+    if(c.data[idx]==null){hd.setAttribute('opacity',0);}
+    else{
+      hd.setAttribute('cx',px);hd.setAttribute('cy',Yy(c.data[idx]));hd.setAttribute('opacity',1);
+      const dw=Math.round((c.data[idx]-firstV)*100)/100;
+      rows=`<div class="tt-row"><span class="l"><span class="dot" style="background:${c.color}"></span>${c.ko}</span><span class="v">${manwon(c.data[idx])}<small>${sign(dw)}${dw}만 · 2주 전 대비</small></span></div>`;
+    }
     tip.innerHTML=`<div class="tt-date">${DATA.dates[idx]}</div>${rows}`;
     tip.style.left=(px/W2*r.width)+'px';tip.style.top=(Mm.t/H2*r.height)+'px';tip.style.opacity=1;
   });
-  s.addEventListener('mouseleave',()=>{tip.style.opacity=0;hl.setAttribute('opacity',0);hd.forEach(d=>d.setAttribute('opacity',0));});
+  s.addEventListener('mouseleave',()=>{tip.style.opacity=0;hl.setAttribute('opacity',0);hd.setAttribute('opacity',0);});
 }
-GROUPS.forEach(buildMini);
+MINI_CHANS.forEach(buildMini);
 
 /* ===== 스크롤 진입 시 선 그리기 애니메이션 (한 번만) ===== */
 function drawReveal(svg,force){
