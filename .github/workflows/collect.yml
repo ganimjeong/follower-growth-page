@@ -2,8 +2,10 @@ name: Collect followers
 
 on:
   schedule:
-    - cron: '53 0 * * *'   # 09:53 KST (= 00:53 UTC) — 1차
-    - cron: '17 1 * * *'   # 10:17 KST (= 01:17 UTC) — 2차 백업
+    # GitHub 스케줄은 실제로 예약 시각보다 2~3시간 늦게 실행됨(러너 대기).
+    # 그만큼 앞당겨 예약해서 실제 실행이 09~10시 KST에 걸리도록 함.
+    - cron: '53 21 * * *'  # 06:53 KST 예약 (= 21:53 UTC 전날) — 1차
+    - cron: '17 22 * * *'  # 07:17 KST 예약 (= 22:17 UTC 전날) — 2차 백업
   workflow_dispatch:        # 수동 실행 버튼
 
 permissions:
@@ -40,6 +42,6 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add data.json
-            git commit -m "chore: 팔로워 자동 수집 ($(date -u +%Y-%m-%d))"
+            git commit -m "chore: 팔로워 자동 수집 ($(TZ=Asia/Seoul date +%Y-%m-%d))"
             git push
           fi
