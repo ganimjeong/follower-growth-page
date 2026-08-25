@@ -1,0 +1,23 @@
+{
+  "team": "fnb",
+  "unit": "raw_followers",
+  "note": "FNB마케팅팀 매장 채널. 공개 페이지(index.html)에는 나오지 않고 사내 관리자 화면만 읽는다.",
+  "channels": [
+    {
+      "handle": "gwangju__gomgom",
+      "ko": "곰곰",
+      "color": "#2563eb"
+    },
+    {
+      "handle": "omazing.gwangju",
+      "ko": "오메이징",
+      "color": "#be185d"
+    },
+    {
+      "handle": "neong_dam_e",
+      "ko": "넝담이",
+      "color": "#14713f"
+    }
+  ],
+  "points": []
+}
