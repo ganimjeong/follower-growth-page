@@ -1,11 +1,21 @@
-# 채널 팔로워 성장세
+# 채널 팔로워 성장세 (수집 중지 — 기록 보관용)
 
-인스타 팔로워 추이를 매일 한 번 모아 두는 저장소입니다.
+> ## ⚠️ 자동 수집은 멈췄습니다
+>
+> 팔로워 수집은 **wayclip-booking 사이트가 직접** 합니다. 인스타 Graph API의
+> Business Discovery를 Cloudflare cron이 부르고, 결과는 그쪽 D1에 쌓이며, 화면은
+> 관리자 페이지의 **채널** 탭입니다(마케팅전략팀 · fnb마케팅팀 각각).
+>
+> 여기서 계속 돌리면 같은 계정을 두 곳에서 긁게 되고, 두 숫자가 어긋났을 때 어느 쪽이
+> 맞는지 아무도 모릅니다. 그래서 `schedule`을 뗐습니다(수동 실행 버튼만 남음).
+>
+> **`data.json` / `fnb.json` 은 지우지 마세요.** 2026-05-27부터의 실측이 담겨 있고,
+> 사이트의 `0030_seed_channels.sql` 이 이 값을 옮겨간 원본입니다.
 
-- **공개 페이지** — 양산형 채널 5개(goodvibesongs · goodmovies · thishiphop · readyaction · space_lab)
-  👉 https://ganimjeong.github.io/follower-growth-page/
-- **사내 관리자 화면** — 위 5개와 FNB 매장 채널 3개(곰곰 · 오메이징 · 넝담이)를
-  wayclip-booking 관리자 페이지의 **채널** 탭이 이 저장소의 JSON을 읽어 그립니다.
+이 저장소는 이제 **과거 기록 보관소**이자, 사이트 쪽이 오래 막혔을 때의 임시 수단입니다.
+
+- 공개 페이지(양산형 채널 5개) 👉 https://ganimjeong.github.io/follower-growth-page/
+- 사내 화면은 wayclip-booking 관리자 페이지 → 채널 탭
 
 ## 파일
 

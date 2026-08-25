@@ -1,12 +1,23 @@
-name: Collect followers
+name: Collect followers (중지됨)
+
+# 이 워크플로는 더 이상 예약 실행되지 않습니다.
+#
+# 팔로워 수집은 wayclip-booking 사이트가 직접 합니다 — 인스타 Graph API의
+# Business Discovery를 Cloudflare cron이 부르고, 결과는 그쪽 D1에 쌓입니다.
+# 화면도 그쪽 관리자 페이지의 '채널' 탭입니다.
+#
+# 여기서 계속 돌리면 같은 계정을 두 곳에서 긁게 되고, 두 숫자가 어긋났을 때 어느 쪽이
+# 맞는지 아무도 모릅니다. 그래서 schedule을 뗐습니다.
+#
+# data.json / fnb.json 은 지우지 마세요. 2026-05-27부터의 실측이 담겨 있고,
+# 사이트의 0030 마이그레이션이 이 값을 옮겨간 원본입니다.
+#
+# 수동 실행 버튼만 남겨둡니다 — 사이트 쪽이 오래 막혔을 때의 임시 수단입니다.
+# 쓰려면 CHANNELS_JSON 시크릿이 아래 모양이어야 합니다(README 참고):
+#   { "self": { "igUserId": "...", "accessToken": "...", "appId": "...", "appSecret": "..." } }
 
 on:
-  schedule:
-    # GitHub 스케줄은 실제로 예약 시각보다 2~3시간 늦게 실행됨(러너 대기).
-    # 그만큼 앞당겨 예약해서 실제 실행이 09~10시 KST에 걸리도록 함.
-    - cron: '53 21 * * *'  # 06:53 KST 예약 (= 21:53 UTC 전날) — 1차
-    - cron: '17 22 * * *'  # 07:17 KST 예약 (= 22:17 UTC 전날) — 2차 백업
-  workflow_dispatch:        # 수동 실행 버튼
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -30,29 +41,16 @@ jobs:
         env:
           CHANNELS_JSON: ${{ secrets.CHANNELS_JSON }}
 
-      # 토큰이 죽으면 수집이 조용히 멈춘다. 매일 확인해서 죽었으면 여기서 실패하고,
-      # 만료가 가까우면(사용자 토큰) 연장한다. 페이지 토큰이면 확인만 하고 지나간다
-      - name: Check / renew token
+      - name: Check token
         id: token
         run: node token-check.mjs
 
-      # 연장됐을 때만 시크릿을 다시 쓴다. GH_PAT는 이 저장소 시크릿 쓰기 권한이 필요한데,
-      # GITHUB_TOKEN으로는 시크릿을 못 바꿔서 별도 토큰이 있어야 한다.
-      # 페이지 토큰을 쓰면 이 단계는 영영 돌지 않으므로 GH_PAT를 두지 않아도 된다
-      - name: Store renewed token
-        if: steps.token.outputs.rotated == 'true' && env.GH_PAT != ''
-        run: gh secret set CHANNELS_JSON --body "$(cat channels.json)"
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-
-      # 한 채널이 막혀도 나머지는 저장한다. 대신 collect.mjs가 실패로 끝나 빨간 X가 남는다
       - name: Collect followers
         id: collect
         continue-on-error: true
         run: node collect.mjs data.json fnb.json
 
-      - name: Commit data.json if changed
+      - name: Commit if changed
         if: always()
         run: |
           rm -f channels.json
@@ -62,11 +60,10 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add data.json fnb.json
-            git commit -m "chore: 팔로워 자동 수집 ($(TZ=Asia/Seoul date +%Y-%m-%d))"
+            git commit -m "chore: 팔로워 수동 수집 ($(TZ=Asia/Seoul date +%Y-%m-%d))"
             git push
           fi
 
-      # 부분 실패를 성공으로 덮지 않는다 — 커밋은 끝내되 실행 자체는 빨갛게 남긴다
       - name: Fail if collection had errors
         if: steps.collect.outcome == 'failure'
         run: |
